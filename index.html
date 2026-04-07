@@ -689,10 +689,10 @@
         };
 
         let db, auth, messaging, userId = null;
-let ledgerInterval = null;
-let isSigningUp = false;
-let isEmailVerified = false;
-let allTransactions = [];
+        let ledgerInterval = null;
+        let isSigningUp = false;
+        let isEmailVerified = false;
+        let allTransactions = [];
         let selectedAccountType = null;
         let selectedSpecificAccountName = null;
         let unsubscribeSpecificAccounts = null;
@@ -702,58 +702,134 @@ let allTransactions = [];
         let editProfilePhotoFile = null; // Correctly defined
         let tempSignupData = {}; // Stores Step 1 data temporarily
         const app = initializeApp(firebaseConfig);
-db = getFirestore(app);
-auth = getAuth(app);
-messaging = getMessaging(app);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        messaging = getMessaging(app);
 
         const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1 MB
 
         function playVoiceNotification(text) {
-        const speakText = text || "Attention! You have a new payment reminder.";
-        const utterance = new SpeechSynthesisUtterance(speakText);
-        window.speechSynthesis.speak(utterance);
+            const speakText = text || "Attention! You have a new payment reminder.";
+            const utterance = new SpeechSynthesisUtterance(speakText);
+            window.speechSynthesis.speak(utterance);
 
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(e => console.log("Click page once to enable audio."));
-    }
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(e => console.log("Click page once to enable audio."));
+        }
 
-    // Foreground listener
-    onMessage(messaging, (payload) => {
-        console.log('Foreground Message:', payload);
-        playVoiceNotification(payload.notification.body);
-        alert(`${payload.notification.title}: ${payload.notification.body}`);
-    });
+        // Foreground listener
+        onMessage(messaging, (payload) => {
+            console.log('Foreground Message:', payload);
+            playVoiceNotification(payload.notification.body);
+            alert(`${payload.notification.title}: ${payload.notification.body}`);
+        });
 
-    // Background listener (Service Worker communication)
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'TRIGGER_VOICE') {
-                playVoiceNotification(event.data.text);
+        // Background listener (Service Worker communication)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'TRIGGER_VOICE') {
+                    playVoiceNotification(event.data.text);
+                }
+            });
+
+            // Register Service Worker
+            navigator.serviceWorker.register('firebase-messaging-sw.js')
+                .then(reg => console.log("Service Worker Active"))
+                .catch(err => console.log("SW Registration Error", err));
+        }
+
+        // FCM Token Setup (Paste your long VAPID key here)
+        async function setupNotifications() {
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    const token = await getToken(messaging, {
+                        vapidKey: "BFeqqhNCOdgm2wGzLwux-MCwk9QoNdkB4bC5K00cpzJvw9bnyF8QCT9gKNwL6exa3T95G8lHkciKSqoajCccgYM"
+                    });
+                    if (token) console.log("FCM Token:", token);
+                }
+            } catch (err) { console.log('Token error:', err); }
+        }
+        setupNotifications();
+        function startLedgerReminderCheck(ledgers) {
+            if (ledgerInterval) clearInterval(ledgerInterval);
+
+            console.log("🔔 Reminder Watcher Active for", ledgers.length, "accounts");
+
+            ledgerInterval = setInterval(() => {
+                const now = new Date();
+
+                // Standard format matching: HH:MM and YYYY-MM-DD
+                const currentTime = now.getHours().toString().padStart(2, '0') + ":" +
+                    now.getMinutes().toString().padStart(2, '0');
+                const currentDate = now.toISOString().split('T')[0];
+
+                ledgers.forEach(async (ledger) => {
+                    // Check if date and time match exactly and hasn't notified yet
+                    if (ledger.reminderDate === currentDate &&
+                        ledger.reminderTime === currentTime &&
+                        !ledger.notified) {
+
+                        // Mark as notified immediately locally to prevent loop overlap
+                        ledger.notified = true;
+
+                        // 1. VOICE ALERT (Triggered once)
+                        playVoiceNotification(`Attention! Payment reminder for ${ledger.name}`);
+
+                        // 2. WRITTEN NOTIFICATION (System Banner)
+                        if (Notification.permission === "granted") {
+                            navigator.serviceWorker.ready.then((registration) => {
+                                registration.showNotification("💰 Payment Reminder", {
+                                    body: `Action required for ${ledger.name}`,
+                                    icon: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
+                                    badge: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
+                                    vibrate: [200, 100, 200],
+                                    requireInteraction: true,
+                                    tag: ledger.id
+                                });
+                            });
+                        } else {
+                            alert(`Reminder: ${ledger.name} requires attention!`);
+                        }
+
+                        // 3. DATABASE UPDATE (Stop repeating the reminder in future loads)
+                        try {
+                            const collectionPath = selectedAccountType + 'Accounts';
+                            const ledgerDocRef = doc(db, 'users', userId, collectionPath, ledger.id);
+                            await updateDoc(ledgerDocRef, { notified: true });
+                            console.log(`Database updated for ${ledger.name}`);
+                        } catch (err) {
+                            console.error("DB Update Error:", err);
+                        }
+                    }
+                });
+            }, 30000); // Check every 30 seconds
+        }
+        function startApp() {
+        onAuthStateChanged(auth, (user) => {
+            const globalHeader = document.getElementById('global-header');
+            if (user) {
+                if (globalHeader) globalHeader.classList.remove('hidden');
+                userId = user.uid;
+                loadUserProfile(userId);
+                setupNotifications();
+                hideElement(authContainer);
+                showElement(accountSelectionContainer);
+            } else {
+                userId = null;
+                showElement(authContainer);
+                hideElement(appContainer);
+                hideElement(accountSelectionContainer);
             }
         });
-        
-        // Register Service Worker
-        navigator.serviceWorker.register('firebase-messaging-sw.js')
-            .then(reg => console.log("Service Worker Active"))
-            .catch(err => console.log("SW Registration Error", err));
     }
 
-    // FCM Token Setup (Paste your long VAPID key here)
-    async function setupNotifications() {
-        try {
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-                const token = await getToken(messaging, {
-                    vapidKey: "BFeqqhNCOdgm2wGzLwux-MCwk9QoNdkB4bC5K00cpzJvw9bnyF8QCT9gKNwL6exa3T95G8lHkciKSqoajCccgYM"
-                });
-                if (token) console.log("FCM Token:", token);
-            }
-        } catch (err) { console.log('Token error:', err); }
-    }
-    setupNotifications();
-
-
+    // Start everything
+    startApp();
+    checkEmailVerificationOnLoad();
         
+
+
 
         // --- DOM ELEMENTS ---
         const authContainer = document.getElementById('auth-container');
@@ -1864,68 +1940,7 @@ messaging = getMessaging(app);
             });
         }
 
-        function startLedgerReminderCheck(ledgers) {
-            if (ledgerInterval) clearInterval(ledgerInterval);
 
-            console.log("🔔 Reminder Watcher Active for", ledgers.length, "accounts");
-
-            ledgerInterval = setInterval(() => {
-                const now = new Date();
-
-                // India-friendly formats to match <input> types
-                const currentTime = now.getHours().toString().padStart(2, '0') + ":" +
-                    now.getMinutes().toString().padStart(2, '0');
-                const currentDate = now.toISOString().split('T')[0];
-
-                ledgers.forEach(async (ledger) => {
-                    if (ledger.reminderDate === currentDate &&
-                        ledger.reminderTime === currentTime &&
-                        !ledger.notified) {
-
-                        // 1. VOICE ALERT - Speaks the name of the customer/biller
-                        const speakReminder = new SpeechSynthesisUtterance(`Attention! You have a payment reminder for ${ledger.name}`);
-                        window.speechSynthesis.speak(speakReminder);
-
-                        if (Notification.permission === "granted") {
-                            // 1. YOUR EXISTING VOICE ALERT (Keep this)
-                            const speakReminder = new SpeechSynthesisUtterance(`Attention! Payment reminder for ${ledger.name}`);
-                            window.speechSynthesis.speak(speakReminder);
-
-                            // 2. FIXED WRITTEN NOTIFICATION (Using Service Worker for background support)
-                            navigator.serviceWorker.ready.then((registration) => {
-                                registration.showNotification("💰 Payment Reminder", {
-                                    body: `Action required for ${ledger.name}`,
-                                    icon: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
-                                    badge: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
-                                    vibrate: [200, 100, 200],
-                                    requireInteraction: true, // Banner stays until user clicks/closes
-                                    tag: ledger.id // Prevents multiple banners for the same user
-                                });
-                            });
-
-                            // 3. YOUR EXISTING DATABASE UPDATE (Keep this)
-                            ledger.notified = true;
-                            const collectionPath = selectedAccountType + 'Accounts';
-                            const ledgerDocRef = doc(db, 'users', userId, collectionPath, ledger.id);
-                            await updateDoc(ledgerDocRef, { notified: true });
-                        } else {
-                            alert(`Reminder: ${ledger.name} requires attention!`);
-                        }
-
-                        // 3. DATABASE UPDATE - Stop repeating the reminder
-                        ledger.notified = true;
-                        try {
-                            const collectionPath = selectedAccountType + 'Accounts'; // e.g., customerAccounts
-                            const ledgerDocRef = doc(db, 'users', userId, collectionPath, ledger.id);
-                            await updateDoc(ledgerDocRef, { notified: true });
-                        } catch (err) {
-                            console.error("DB Update Error:", err);
-                        }
-                    }
-                });
-            }, 30000); // Check every 30 seconds to save battery/performance
-        }
-        setupNotifications();
 
         async function handleAddSpecificAccount(e) {
             e.preventDefault();
@@ -2220,81 +2235,7 @@ messaging = getMessaging(app);
 
         // --- APP STARTUP ---
 
-        function initFirebase() {
-    // 1. Request Notification Permission
-    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-        Notification.requestPermission();
-    }
 
-    // 2. Service Worker Listener for Voice
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'TRIGGER_VOICE') {
-                const speakText = event.data.text || "Attention! You have a new payment reminder.";
-                const utterance = new SpeechSynthesisUtterance(speakText);
-                window.speechSynthesis.speak(utterance);
-                console.log("Voice alert triggered from background.");
-            }
-        });
-    }
-
-    try {
-        // --- THE FIX ---
-        // We initialize them here without using 'const' or 'let' again
-        const firebaseApp = initializeApp(firebaseConfig); 
-        auth = getAuth(firebaseApp);
-        db = getFirestore(firebaseApp);
-        messaging = getMessaging(firebaseApp); 
-
-        // Run verification check immediately on load
-        checkEmailVerificationOnLoad();
-
-        // Auth State Listener
-        onAuthStateChanged(auth, (user) => {
-            const globalHeader = document.getElementById('global-header');
-            if (user) {
-                if (globalHeader) globalHeader.classList.remove('hidden');
-                userId = user.uid;
-                loadUserProfile(userId);
-                setupNotifications(); // Request VAPID token
-
-                hideElement(authContainer);
-                hideElement(profileEditContainer);
-                hideElement(appContainer);
-
-                if (selectedAccountType && selectedSpecificAccountName) {
-                    handleSpecificAccountSelect(selectedSpecificAccountName);
-                } else if (selectedAccountType) {
-                    handleAccountTypeSelection(selectedAccountType);
-                } else {
-                    showElement(accountSelectionContainer);
-                }
-            } else {
-                // Logout Logic
-                userId = null;
-                selectedAccountType = null;
-                selectedSpecificAccountName = null;
-                isEmailVerified = false;
-                unsubscribeAllListeners();
-
-                hideElement(accountSelectionContainer);
-                hideElement(specificAccountSelectionContainer);
-                hideElement(profileEditContainer);
-                hideElement(appContainer);
-                showElement(authContainer);
-            }
-        });
-
-    } catch (error) {
-        console.error("Error during Firebase initialization:", error);
-        // Ensure authStatusEl exists in your HTML
-        const statusEl = document.getElementById('auth-status');
-        if (statusEl) {
-            statusEl.textContent = `Database Error: ${error.message}`;
-            statusEl.classList.remove('hidden');
-        }
-    }
-}
 
         function triggerVoiceAlert(text) {
             const speakText = text || "Attention! You have a new payment reminder.";
@@ -2459,8 +2400,7 @@ messaging = getMessaging(app);
 
             // ----------------------------------------------------
 
-            // Initialize Firebase
-            initFirebase();
+            
 
             // CATEGORY TOGGLE LOGIC
             function updateCategoryOptions() {
