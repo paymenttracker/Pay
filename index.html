@@ -688,16 +688,11 @@
             measurementId: "G-2BR60LS3QM"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const messaging = getMessaging(app);
-
-        let userId = null;
-        let ledgerInterval = null;
-        let isSigningUp = false;
-        let isEmailVerified = false; // Tracks email verification status
-        let allTransactions = [];
+        let db, auth, messaging, userId = null;
+let ledgerInterval = null;
+let isSigningUp = false;
+let isEmailVerified = false;
+let allTransactions = [];
         let selectedAccountType = null;
         let selectedSpecificAccountName = null;
         let unsubscribeSpecificAccounts = null;
@@ -706,6 +701,10 @@
         let profilePhotoFile = null;
         let editProfilePhotoFile = null; // Correctly defined
         let tempSignupData = {}; // Stores Step 1 data temporarily
+        const app = initializeApp(firebaseConfig);
+db = getFirestore(app);
+auth = getAuth(app);
+messaging = getMessaging(app);
 
         const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1 MB
 
@@ -2222,103 +2221,80 @@
         // --- APP STARTUP ---
 
         function initFirebase() {
-            // Check for mock config use
-            // Add this to request permission when the app starts
-            if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") {
-                        console.log("Notification permission granted.");
-                    }
-                });
+    // 1. Request Notification Permission
+    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
+
+    // 2. Service Worker Listener for Voice
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'TRIGGER_VOICE') {
+                const speakText = event.data.text || "Attention! You have a new payment reminder.";
+                const utterance = new SpeechSynthesisUtterance(speakText);
+                window.speechSynthesis.speak(utterance);
+                console.log("Voice alert triggered from background.");
             }
-            // Add this in your main <script type="module">
-            // Listen for messages from the Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.addEventListener('message', (event) => {
-                    if (event.data && event.data.type === 'TRIGGER_VOICE') {
-                        const speakText = event.data.text || "Attention! You have a new payment reminder.";
+        });
+    }
 
-                        // Trigger the actual voice
-                        const utterance = new SpeechSynthesisUtterance(speakText);
+    try {
+        // --- THE FIX ---
+        // We initialize them here without using 'const' or 'let' again
+        const firebaseApp = initializeApp(firebaseConfig); 
+        auth = getAuth(firebaseApp);
+        db = getFirestore(firebaseApp);
+        messaging = getMessaging(firebaseApp); 
 
-                        // Optional: Adjust voice settings
-                        utterance.rate = 1;
-                        utterance.pitch = 1;
+        // Run verification check immediately on load
+        checkEmailVerificationOnLoad();
 
-                        window.speechSynthesis.speak(utterance);
-                        console.log("Voice alert triggered from background message.");
-                    }
-                });
+        // Auth State Listener
+        onAuthStateChanged(auth, (user) => {
+            const globalHeader = document.getElementById('global-header');
+            if (user) {
+                if (globalHeader) globalHeader.classList.remove('hidden');
+                userId = user.uid;
+                loadUserProfile(userId);
+                setupNotifications(); // Request VAPID token
+
+                hideElement(authContainer);
+                hideElement(profileEditContainer);
+                hideElement(appContainer);
+
+                if (selectedAccountType && selectedSpecificAccountName) {
+                    handleSpecificAccountSelect(selectedSpecificAccountName);
+                } else if (selectedAccountType) {
+                    handleAccountTypeSelection(selectedAccountType);
+                } else {
+                    showElement(accountSelectionContainer);
+                }
+            } else {
+                // Logout Logic
+                userId = null;
+                selectedAccountType = null;
+                selectedSpecificAccountName = null;
+                isEmailVerified = false;
+                unsubscribeAllListeners();
+
+                hideElement(accountSelectionContainer);
+                hideElement(specificAccountSelectionContainer);
+                hideElement(profileEditContainer);
+                hideElement(appContainer);
+                showElement(authContainer);
             }
+        });
 
-
-            try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
-                // Run verification check immediately on load
-                checkEmailVerificationOnLoad();
-
-                // Auth State Listener: Controls application flow based on login status
-                onAuthStateChanged(auth, (user) => {
-                    const globalHeader = document.getElementById('global-header');
-                    if (user) {
-                        if (globalHeader) globalHeader.classList.remove('hidden');
-                        userId = user.uid;
-                        loadUserProfile(userId);
-                        requestNotificationPermission();
-
-                        // If user is logged in, show account selection
-                        hideElement(authContainer);
-                        hideElement(profileEditContainer);
-                        hideElement(appContainer);
-
-                        // Check if a type/account was previously selected (e.g., after profile edit)
-                        if (selectedAccountType && selectedSpecificAccountName) {
-                            handleSpecificAccountSelect(selectedSpecificAccountName);
-                        } else if (selectedAccountType) {
-                            handleAccountTypeSelection(selectedAccountType);
-                        } else {
-                            showElement(accountSelectionContainer);
-                        }
-
-                        // Clear any previous sign-in status
-                        authStatusEl.textContent = '';
-                        hideElement(authStatusEl);
-
-                    } else {
-                        // User logged out or not signed in
-                        userId = null;
-                        selectedAccountType = null;
-                        selectedSpecificAccountName = null;
-                        isEmailVerified = false; // Reset verification status on logout
-                        unsubscribeAllListeners(); // Stop all database connections
-
-                        // Show Auth screen
-                        hideElement(accountSelectionContainer);
-                        hideElement(specificAccountSelectionContainer);
-                        hideElement(profileEditContainer);
-                        hideElement(appContainer);
-                        showElement(authContainer);
-
-                        // Ensure only the sign-in view is visible upon logout
-                        hideElement(signupStep1View);
-                        hideElement(signupStep2View);
-                        hideElement(signupStep3View);
-                        showElement(signinView);
-
-                        isSigningUp = false; // Reset signup state
-                        authTitle.textContent = 'Sign In'; // Reset title
-                        document.getElementById('auth-toggle-btn').textContent = 'Need an account? Sign Up';
-                    }
-                });
-
-            } catch (error) {
-                console.error("Error during Firebase initialization:", error);
-                showStatus(`Database not configured. Error: ${error.message}`, 'text-red-600', authStatusEl);
-            }
+    } catch (error) {
+        console.error("Error during Firebase initialization:", error);
+        // Ensure authStatusEl exists in your HTML
+        const statusEl = document.getElementById('auth-status');
+        if (statusEl) {
+            statusEl.textContent = `Database Error: ${error.message}`;
+            statusEl.classList.remove('hidden');
         }
+    }
+}
 
         function triggerVoiceAlert(text) {
             const speakText = text || "Attention! You have a new payment reminder.";
