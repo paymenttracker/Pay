@@ -707,124 +707,94 @@
         messaging = getMessaging(app);
 
         const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1 MB
+function playVoiceNotification(text) {
+        if (!window.speechSynthesis) return;
+        
+        // Cancel any current speech to prevent overlapping
+        window.speechSynthesis.cancel(); 
 
-        function playVoiceNotification(text) {
-            const speakText = text || "Attention! You have a new payment reminder.";
-            const utterance = new SpeechSynthesisUtterance(speakText);
-            window.speechSynthesis.speak(utterance);
+        const speakText = text || "Attention! You have a new reminder.";
+        const utterance = new SpeechSynthesisUtterance(speakText);
+        utterance.volume = 1.0;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
 
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-            audio.play().catch(e => console.log("Click page once to enable audio."));
-        }
+        window.speechSynthesis.speak(utterance);
+        
+        // Beep Sound Fallback
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(e => console.log("Sound blocked: Click anywhere on the page to enable sound."));
+    }
 
-        // Foreground listener
-        onMessage(messaging, (payload) => {
-            console.log('Foreground Message:', payload);
-            playVoiceNotification(payload.notification.body);
-            alert(`${payload.notification.title}: ${payload.notification.body}`);
+    // 5. Messaging Handlers
+    onMessage(messaging, (payload) => {
+        playVoiceNotification(payload.notification.body);
+    });
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'TRIGGER_VOICE') {
+                playVoiceNotification(event.data.text);
+            }
         });
+        navigator.serviceWorker.register('firebase-messaging-sw.js').then(reg => console.log("SW Ready"));
+    }
 
-        // Background listener (Service Worker communication)
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'TRIGGER_VOICE') {
-                    playVoiceNotification(event.data.text);
+    // 6. Reminder Logic (CLEANED)
+    function startLedgerReminderCheck(ledgers) {
+        if (ledgerInterval) clearInterval(ledgerInterval);
+
+        ledgerInterval = setInterval(() => {
+            const now = new Date();
+            const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+            const currentDate = now.toISOString().split('T')[0];
+
+            ledgers.forEach(async (ledger) => {
+                if (ledger.reminderDate === currentDate && ledger.reminderTime === currentTime && !ledger.notified) {
+                    ledger.notified = true; // prevent double trigger
+                    
+                    playVoiceNotification(`Attention! Payment reminder for ${ledger.name}`);
+
+                    // Show Banner
+                    if (Notification.permission === "granted") {
+                        navigator.serviceWorker.ready.then((reg) => {
+                            reg.showNotification("💰 Payment Reminder", {
+                                body: `Action required for ${ledger.name}`,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
+                                tag: ledger.id
+                            });
+                        });
+                    }
+
+                    // Update Database
+                    try {
+                        const path = selectedAccountType + 'Accounts';
+                        await updateDoc(doc(db, 'users', userId, path, ledger.id), { notified: true });
+                    } catch (err) { console.error(err); }
                 }
             });
+        }, 15000); // Check every 15 seconds
+    }
 
-            // Register Service Worker
-            navigator.serviceWorker.register('firebase-messaging-sw.js')
-                .then(reg => console.log("Service Worker Active"))
-                .catch(err => console.log("SW Registration Error", err));
-        }
+    // 7. Core Functions (Login, Profile, etc.)
+    // Paste your existing handleSignIn, handleLogout, loadUserProfile, etc. here.
+    // Ensure they do NOT contain 'const db' or 'let ledgerInterval'.
 
-        // FCM Token Setup (Paste your long VAPID key here)
-        async function setupNotifications() {
-            try {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    const token = await getToken(messaging, {
-                        vapidKey: "BFeqqhNCOdgm2wGzLwux-MCwk9QoNdkB4bC5K00cpzJvw9bnyF8QCT9gKNwL6exa3T95G8lHkciKSqoajCccgYM"
-                    });
-                    if (token) console.log("FCM Token:", token);
-                }
-            } catch (err) { console.log('Token error:', err); }
-        }
-        setupNotifications();
-        function startLedgerReminderCheck(ledgers) {
-            if (ledgerInterval) clearInterval(ledgerInterval);
-
-            console.log("🔔 Reminder Watcher Active for", ledgers.length, "accounts");
-
-            ledgerInterval = setInterval(() => {
-                const now = new Date();
-
-                // Standard format matching: HH:MM and YYYY-MM-DD
-                const currentTime = now.getHours().toString().padStart(2, '0') + ":" +
-                    now.getMinutes().toString().padStart(2, '0');
-                const currentDate = now.toISOString().split('T')[0];
-
-                ledgers.forEach(async (ledger) => {
-                    // Check if date and time match exactly and hasn't notified yet
-                    if (ledger.reminderDate === currentDate &&
-                        ledger.reminderTime === currentTime &&
-                        !ledger.notified) {
-
-                        // Mark as notified immediately locally to prevent loop overlap
-                        ledger.notified = true;
-
-                        // 1. VOICE ALERT (Triggered once)
-                        playVoiceNotification(`Attention! Payment reminder for ${ledger.name}`);
-
-                        // 2. WRITTEN NOTIFICATION (System Banner)
-                        if (Notification.permission === "granted") {
-                            navigator.serviceWorker.ready.then((registration) => {
-                                registration.showNotification("💰 Payment Reminder", {
-                                    body: `Action required for ${ledger.name}`,
-                                    icon: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
-                                    badge: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
-                                    vibrate: [200, 100, 200],
-                                    requireInteraction: true,
-                                    tag: ledger.id
-                                });
-                            });
-                        } else {
-                            alert(`Reminder: ${ledger.name} requires attention!`);
-                        }
-
-                        // 3. DATABASE UPDATE (Stop repeating the reminder in future loads)
-                        try {
-                            const collectionPath = selectedAccountType + 'Accounts';
-                            const ledgerDocRef = doc(db, 'users', userId, collectionPath, ledger.id);
-                            await updateDoc(ledgerDocRef, { notified: true });
-                            console.log(`Database updated for ${ledger.name}`);
-                        } catch (err) {
-                            console.error("DB Update Error:", err);
-                        }
-                    }
-                });
-            }, 30000); // Check every 30 seconds
-        }
-        function startApp() {
+    function startApp() {
         onAuthStateChanged(auth, (user) => {
-            const globalHeader = document.getElementById('global-header');
             if (user) {
-                if (globalHeader) globalHeader.classList.remove('hidden');
                 userId = user.uid;
                 loadUserProfile(userId);
-                setupNotifications();
                 hideElement(authContainer);
                 showElement(accountSelectionContainer);
             } else {
                 userId = null;
                 showElement(authContainer);
                 hideElement(appContainer);
-                hideElement(accountSelectionContainer);
             }
         });
     }
 
-    // Start everything
     startApp();
     checkEmailVerificationOnLoad();
         
