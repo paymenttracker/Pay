@@ -690,6 +690,7 @@
 
         let userId = null;
         let ledgerInterval = null;
+        let auth, db, messaging;
         let isSigningUp = false;
         let isEmailVerified = false;
         let allTransactions = [];
@@ -2224,7 +2225,7 @@
 
 
 
-        
+
 
         // --- ATTACH EVENT LISTENERS (CRITICAL FIXES) ---
 
@@ -2265,6 +2266,11 @@
                     // Updates the "Reminder for: [Name]" text dynamically
                     targetDisplay.textContent = currentName ? currentName : "New Ledger";
                 });
+            }
+
+            const signInForm = document.getElementById('signin-form');
+            if (signInForm) {
+                signInForm.addEventListener('submit', handleSignIn);
             }
 
             // ----------------------------------------------------
@@ -2442,7 +2448,7 @@
         }
 
 
-        
+
 
 
 
