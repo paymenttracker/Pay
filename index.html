@@ -1562,20 +1562,27 @@
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     userProfile = docSnap.data();
-                } else {
-                    userProfile = { name: 'User' }; // Default name if profile is missing
+
+                    // 1. Update the Header Name with the actual name from the DB
+                    const nameSpan = document.getElementById('user-display-name');
+                    if (nameSpan) {
+                        nameSpan.textContent = userProfile.name || 'User';
+                    }
+
+                    // 2. Update the Profile Photo
+                    const profileImg = document.getElementById('profile-photo-display');
+                    if (profileImg) {
+                        if (userProfile.photoBase64) {
+                            profileImg.src = userProfile.photoBase64;
+                        } else {
+                            // Fallback to initial if no photo
+                            const firstLetter = (userProfile.name || 'U').charAt(0).toUpperCase();
+                            profileImg.src = `https://placehold.co/40x40/3b82f6/ffffff?text=${firstLetter}`;
+                        }
+                    }
                 }
             } catch (error) {
-                console.error("Error loading user profile:", error);
-                userProfile = { name: 'Error' };
-            }
-
-            // Update the Dashboard Header display
-            document.getElementById('user-display-name').textContent = userProfile.name || 'User';
-            if (userProfile.photoBase64) {
-                document.getElementById('profile-photo-display').src = userProfile.photoBase64;
-            } else {
-                document.getElementById('profile-photo-display').src = `https://placehold.co/40x40/3b82f6/ffffff?text=${(userProfile.name || 'U').charAt(0)}`;
+                console.error("Error loading profile name:", error);
             }
         }
 
@@ -1816,7 +1823,7 @@
             unsubscribeAllListeners(); // Stop old listeners
             selectedSpecificAccountName = accountName;
 
-            // Map the selected account type to a friendly display title
+            // 1. Map the selected account type to a friendly display title
             const typeTitles = {
                 'creditCard': 'Credit Card',
                 'savingsBank': 'Savings Bank',
@@ -1826,25 +1833,34 @@
 
             const titleText = typeTitles[selectedAccountType] || 'Ledger';
 
-            // Update Dashboard UI
-            document.getElementById('app-title').textContent = `${titleText}: ${accountName}`;
-            document.getElementById('current-specific-account-display').textContent = accountName;
+            // 2. Update and SHOW the Dynamic Title in the Header
+            const appTitle = document.getElementById('app-title');
+            if (appTitle) {
+                appTitle.textContent = `${titleText}: ${accountName}`;
+                appTitle.classList.remove('hidden'); // Ensure it is visible now
+            }
 
-            // NEW: Update the label inside the Record Transaction form for better context
+            // 3. Update the Transaction Form Display
+            const specificAccountDisplay = document.getElementById('current-specific-account-display');
+            if (specificAccountDisplay) {
+                specificAccountDisplay.textContent = accountName;
+            }
+
+            // Update the label for better context
             const recordingLabel = document.querySelector('label[for="current-specific-account-display"]');
             if (recordingLabel) {
                 recordingLabel.textContent = `Recording for ${titleText}:`;
             }
 
-            // Ensure the dashboard form starts clean
+            // 4. Clean up the form for a fresh start
             document.getElementById('transaction-form').reset();
             document.getElementById('date').value = new Date().toISOString().substring(0, 10);
 
-            // Show Dashboard
+            // 5. Navigate to Dashboard
             hideElement(specificAccountSelectionContainer);
             showElement(appContainer);
 
-            // Load and filter transactions for the specific account
+            // 6. Start listening for transactions
             setupTransactionListener();
         }
 
@@ -1872,9 +1888,17 @@
 
         // Navigates from Dashboard back to Ledger Type Selection (Credit Card vs Savings)
         function handleNavigateToTypeSelection() {
-            unsubscribeAllListeners(); // Stop all listeners
-            selectedAccountType = null; // Clear type state
-            selectedSpecificAccountName = null; // Clear specific account state
+            unsubscribeAllListeners();
+            selectedAccountType = null;
+            selectedSpecificAccountName = null;
+
+            // Reset the title to default and hide the ledger specific part
+            const appTitle = document.getElementById('app-title');
+            if (appTitle) {
+                appTitle.textContent = "My Financial Ledger";
+                // Optional: appTitle.classList.add('hidden'); if you want it gone entirely
+            }
+
             hideElement(appContainer);
             hideElement(specificAccountSelectionContainer);
             showElement(accountSelectionContainer);
@@ -2394,8 +2418,19 @@
             });
 
             // PROFILE MENU & EDIT
-            document.getElementById('profile-photo-display').addEventListener('click', () => {
-                document.getElementById('profile-menu').classList.toggle('hidden');
+            document.getElementById('profile-photo-display').addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevents the menu from closing instantly when you open it
+                const menu = document.getElementById('profile-menu');
+                menu.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('profile-menu');
+                const photo = document.getElementById('profile-photo-display');
+
+                // If the menu is open and the user clicks anywhere that isn't the photo or the menu itself
+                if (!menu.classList.contains('hidden') && e.target !== photo && !menu.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
             });
             document.getElementById('edit-profile-menu-btn').addEventListener('click', handleNavigateToProfileEdit);
             document.getElementById('cancel-edit-btn').addEventListener('click', handleNavigateBackFromProfileEdit);
