@@ -709,24 +709,31 @@
 
         const MAX_FILE_SIZE_BYTES = 1024 * 1024; // 1 MB
 
+        // 1. Close the function properly with a }
         function triggerVoiceAlert(text) {
             if (!window.speechSynthesis) return;
 
-            // Cancel existing speech to prevent a "queue jam"
-            window.speechSynthesis.cancel();
+            const message = text || "Attention! You have a new payment reminder.";
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.lang = 'en-US';
 
-            const speakText = text || "Attention! You have a new payment reminder.";
-            const utterance = new SpeechSynthesisUtterance(speakText);
-            utterance.volume = 1;
-            utterance.rate = 1;
-            utterance.pitch = 1;
-
-            window.speechSynthesis.speak(utterance);
-
-            // Audio Beep Fallback
             const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-            audio.play().catch(e => console.log("Audio requires a click on the page first."));
-        }
+
+            audio.play().then(() => {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
+                window.speechSynthesis.speak(utterance);
+            }).catch(err => {
+                console.log("Sound blocked. Click the page once.");
+            });
+        } // <--- THIS IS THE MISSING CLOSING BRACE
+
+        // 2. Now the listener can start correctly
+        onMessage(messaging, (payload) => {
+            console.log("Foreground message received:", payload);
+            triggerVoiceAlert(payload.notification.body);
+            alert(`${payload.notification.title}: ${payload.notification.body}`);
+        });
         // Foreground listener
         onMessage(messaging, (payload) => {
             triggerVoiceAlert(payload.notification.body);
@@ -737,10 +744,13 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('message', (event) => {
                 if (event.data && event.data.type === 'TRIGGER_VOICE') {
+                    console.log("Background message received from SW:", event.data.text);
+
+                    // We use the same function name you have, but ensure it's 
+                    // the version that chains the beep and the voice.
                     triggerVoiceAlert(event.data.text);
                 }
             });
-            navigator.serviceWorker.register('firebase-messaging-sw.js').then(reg => console.log("SW Active"));
         }
         // FCM Token Setup (Paste your long VAPID key here)
 
@@ -751,34 +761,43 @@
 
             ledgerInterval = setInterval(() => {
                 const now = new Date();
-                const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-                const currentDate = now.toISOString().split('T')[0];
+
+                // 1. Get current date in YYYY-MM-DD format (India Time)
+                const currentDate = now.toLocaleDateString('en-CA', {
+                    timeZone: 'Asia/Kolkata'
+                });
+
+                // 2. Get current time in HH:mm format (India Time)
+                const currentTime = now.toLocaleTimeString('en-GB', {
+                    timeZone: 'Asia/Kolkata',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+
+                console.log(`System Check (IST): ${currentDate} at ${currentTime}`);
 
                 ledgers.forEach(async (ledger) => {
+                    // Log for debugging
+                    console.log(`Comparing: [${currentDate} ${currentTime}] with [${ledger.reminderDate} ${ledger.reminderTime}]`);
+
                     if (ledger.reminderDate === currentDate && ledger.reminderTime === currentTime && !ledger.notified) {
 
-                        ledger.notified = true; // Prevent double trigger
                         triggerVoiceAlert(`Attention! Payment reminder for ${ledger.name}`);
 
-                        // Show Written Notification
-                        if (Notification.permission === "granted") {
-                            navigator.serviceWorker.ready.then((reg) => {
-                                reg.showNotification("💰 Payment Reminder", {
-                                    body: `Action required for ${ledger.name}`,
-                                    icon: 'https://cdn-icons-png.flaticon.com/512/3135/3135706.png',
-                                    tag: ledger.id
-                                });
-                            });
-                        }
+                        // Mark as notified so it doesn't repeat every 15 seconds
+                        ledger.notified = true;
 
-                        // Update Database
+                        // Update Firestore
                         try {
                             const col = selectedAccountType + 'Accounts';
                             await updateDoc(doc(db, 'users', userId, col, ledger.id), { notified: true });
-                        } catch (err) { console.error("DB update error", err); }
+                        } catch (err) {
+                            console.error("DB Update Error:", err);
+                        }
                     }
                 });
-            }, 15000); // Check every 15 seconds
+            }, 15000); // Checks every 15 seconds
         }
         async function setupNotifications() {
             try {
@@ -807,10 +826,16 @@
             });
         }
         // Add this to the bottom of your script
+        // Look for this at the bottom of your code and replace it
         document.addEventListener('click', () => {
+            // This 'primes' the audio AND the speech engine simultaneously
             const unlock = new SpeechSynthesisUtterance("");
             window.speechSynthesis.speak(unlock);
-            console.log("Audio Unlocked");
+
+            const silentAudio = new Audio();
+            silentAudio.play().catch(() => { });
+
+            console.log("Audio & Voice Engine Primed");
         }, { once: true });
 
         startApp();
