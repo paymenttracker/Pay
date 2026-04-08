@@ -129,6 +129,34 @@
 </head>
 
 <body class="min-h-screen p-4 md:p-8">
+    <header class="flex items-center justify-between p-4 bg-white shadow-md sticky top-0 z-50 mb-6">
+        <div class="flex items-center space-x-3">
+            <div class="relative">
+                <img id="profile-photo-display" src="https://placehold.co/40x40/3b82f6/ffffff?text=U"
+                    class="profile-pic" alt="Profile Photo">
+
+                <div id="profile-menu"
+                    class="absolute left-0 top-full mt-2 w-40 bg-white rounded-lg shadow-lg py-1 hidden z-10 border border-gray-200">
+                    <button id="edit-profile-menu-btn"
+                        class="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md">
+                        Edit Profile
+                    </button>
+                    <button id="header-logout-btn"
+                        class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md">
+                        Logout
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col">
+                <span id="user-display-name" class="text-xs text-gray-700 font-medium leading-tight">Loading...</span>
+                <h1 class="text-sm font-bold text-gray-800" id="app-title">My Financial Ledger</h1>
+            </div>
+        </div>
+
+
+    </header>
+
 
     <div id="auth-container" class="auth-container">
 
@@ -308,14 +336,29 @@
 
             <form id="add-specific-account-form" class="flex flex-col gap-4 mb-4 items-center justify-center">
                 <div class="flex flex-col sm:flex-row gap-2 w-full">
-                    <input type="text" id="new-account-name" placeholder="New Account Name (e.g., Rahul Sharma)"
-                        required
+                    <input type="text" id="new-account-name" placeholder="New Account Name..." required
                         class="flex-grow rounded-md border-gray-300 shadow-sm p-2 border focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto">
-                    <button type="submit"
-                        class="w-full sm:w-auto py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
-                        Add Account
-                    </button>
+
+                    <div class="flex items-center gap-1">
+                        <button type="submit" id="main-account-submit-btn"
+                            class="w-full sm:w-auto py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150">
+                            Add Account
+                        </button>
+
+                        <button type="button" id="cancel-selection-x"
+                            class="hidden p-2 bg-red-50 text-red-500 rounded-md border border-red-200 hover:bg-red-100 transition"
+                            title="Cancel Selection">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                                fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
+
+
 
                 <div id="ledger-reminder-ui"
                     class="hidden w-full p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-left">
@@ -328,9 +371,32 @@
                             </svg>
                         </span>
                         <p class="text-xs font-bold text-indigo-700 uppercase tracking-wide">
-                            Reminder for: <span id="reminder-target-display" class="text-indigo-900 underline">New
-                                Ledger</span>
+                            Reminder for:
+                            <button type="button" id="reminder-target-display"
+                                class="text-indigo-900 underline hover:text-blue-600 transition ml-1">
+                                Search Ledger
+                            </button>
+                            <span class="text-[10px] text-indigo-400 font-normal ml-1">(Click to change)</span>
                         </p>
+                    </div>
+                    <div id="reminder-search-container"
+                        class="hidden mt-2 p-3 bg-white border border-indigo-200 rounded-lg shadow-lg">
+                        <div class="flex items-center gap-2 mb-2">
+                            <input type="text" id="quick-search-input" placeholder="Search saved name..."
+                                class="flex-grow p-2 text-sm border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+
+                            <button type="button" id="close-quick-search"
+                                class="px-2 py-2 text-gray-400 hover:text-red-500 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                                    fill="currentColor">
+                                    <path fill-rule="evenodd"
+                                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="quick-search-results" class="max-h-40 overflow-y-auto space-y-1">
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -431,31 +497,8 @@
 
 
     <div id="app-container" class="max-w-6xl mx-auto hidden">
-        <header class="flex items-center justify-between p-4 bg-white shadow-md sticky top-0 z-50 mb-6">
-            <div class="flex items-center space-x-3">
-                <div class="relative">
-                    <img id="profile-photo-display" src="https://placehold.co/40x40/3b82f6/ffffff?text=U"
-                        class="profile-pic" alt="Profile Photo">
 
-                    <div id="profile-menu"
-                        class="absolute left-0 top-full mt-2 w-40 bg-white rounded-lg shadow-lg py-1 hidden z-10 border border-gray-200">
-                        <button id="edit-profile-menu-btn"
-                            class="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md">
-                            Edit Profile
-                        </button>
-                        <button id="header-logout-btn"
-                            class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md">
-                            Logout
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex flex-col">
-                    <span id="user-display-name"
-                        class="text-xs text-gray-700 font-medium leading-tight">Loading...</span>
-                    <h1 class="text-sm font-bold text-gray-800" id="app-title">My Financial Ledger</h1>
-                </div>
-            </div>
+        <div class="flex items-center space-x-3">
 
             <div class="flex space-x-2">
                 <button id="change-account-btn"
@@ -467,7 +510,9 @@
                     Type
                 </button>
             </div>
-        </header>
+        </div>
+
+
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -700,7 +745,8 @@
         let unsubscribeTransactions = null;
         let userProfile = {};
         let profilePhotoFile = null;
-        let editProfilePhotoFile = null; // Correctly defined
+        let editProfilePhotoFile = null;
+        let editingAccountId = null; // Stores the ID of the account being edited// Correctly defined
         let tempSignupData = {}; // Stores Step 1 data temporarily
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
@@ -814,12 +860,20 @@
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     userId = user.uid;
-                    loadUserProfile(userId);
-                    setupNotifications();
+                    loadUserProfile(userId); // This loads your photo and name
+
+                    // SHOW THE GLOBAL HEADER IMMEDIATELY
+                    const globalHeader = document.querySelector('header');
+                    if (globalHeader) globalHeader.classList.remove('hidden');
+
                     hideElement(authContainer);
                     showElement(accountSelectionContainer);
                 } else {
                     userId = null;
+                    // HIDE THE HEADER ON LOGOUT
+                    const globalHeader = document.querySelector('header');
+                    if (globalHeader) globalHeader.classList.add('hidden');
+
                     showElement(authContainer);
                     hideElement(appContainer);
                 }
@@ -1553,18 +1607,34 @@
 
         function handleNavigateToProfileEdit() {
             unsubscribeAllListeners(); // Stop dashboard listeners
+
+            // 1. Hide every possible main container
+            hideElement(authContainer);
+            hideElement(accountSelectionContainer);
+            hideElement(specificAccountSelectionContainer);
             hideElement(appContainer);
+
+            // 2. Hide the profile menu dropdown
+            hideElement(document.getElementById('profile-menu'));
+
+            // 3. Show the Profile Edit screen
             showElement(profileEditContainer);
-            populateProfileEditForm(); // Load current data into the form
-            hideElement(document.getElementById('profile-menu')); // Hide menu after clicking edit
+
+            // 4. Load the data into the form
+            populateProfileEditForm();
         }
 
         function handleNavigateBackFromProfileEdit() {
+            // 1. Hide the profile editor
             hideElement(profileEditContainer);
-            // Re-show the app container, assuming the user was on the dashboard
-            showElement(appContainer);
-            // Note: Dashboard listeners are re-established when re-selecting account, or persist if app was open.
-            if (selectedAccountType) setupTransactionListener(); // Restart listener if account was selected
+
+            // 2. Go back to the initial ledger selection screen
+            selectedAccountType = null;
+            selectedSpecificAccountName = null;
+            showElement(accountSelectionContainer);
+
+            // 3. Ensure the header is still visible
+            showElement(document.getElementById('global-header'));
         }
 
         async function handleProfileUpdate(e) {
@@ -1813,78 +1883,22 @@
         // Function to rename a ledger
         // Function to rename a ledger AND all its associated transactions
         async function handleRenameAccount(accountId, oldName, oldDate, oldTime) {
-            // 1. Populate the form fields with existing data
-            const nameInput = document.getElementById('new-account-name');
-            const dateInput = document.getElementById('ledger-reminder-date');
-            const timeInput = document.getElementById('ledger-reminder-time');
-            const targetDisplay = document.getElementById('reminder-target-display');
+            // 1. Tell the app which ID we are editing
+            editingAccountId = accountId;
+
+            // 2. Fill the inputs
+            document.getElementById('new-account-name').value = oldName;
+            document.getElementById('ledger-reminder-date').value = oldDate || '';
+            document.getElementById('ledger-reminder-time').value = oldTime || '';
+            document.getElementById('reminder-target-display').textContent = oldName;
+
+            // 3. Change the Button UI to "Update" mode
             const submitBtn = document.querySelector('#add-specific-account-form button[type="submit"]');
-            const form = document.getElementById('add-specific-account-form');
-
-            if (nameInput) nameInput.value = oldName;
-            if (dateInput) dateInput.value = oldDate || '';
-            if (timeInput) timeInput.value = oldTime || '';
-            if (targetDisplay) targetDisplay.textContent = oldName;
-
-            // 2. Change UI to "Edit Mode"
             submitBtn.textContent = "Update Ledger";
             submitBtn.classList.replace('bg-indigo-600', 'bg-green-600');
-            nameInput.focus();
+            document.getElementById('cancel-selection-x').classList.remove('hidden');
 
-            // 3. Override form submission for "Update" instead of "Add"
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-
-                const newName = nameInput.value.trim();
-                const newDate = dateInput.value;
-                const newTime = timeInput.value;
-
-                if (!newName) return;
-
-                try {
-                    showStatus(`Updating ${oldName}...`, 'text-blue-600', document.getElementById('specific-account-status'));
-
-                    const batch = writeBatch(db);
-                    const accountsCollectionRef = getSpecificAccountsCollectionPath(selectedAccountType);
-                    const transactionsCollectionRef = getCollectionPath(selectedAccountType);
-
-                    // A. Update the Ledger Document (Name + Reminders)
-                    const accountDocRef = doc(accountsCollectionRef, accountId);
-                    batch.update(accountDocRef, {
-                        name: newName,
-                        reminderDate: newDate || null,
-                        reminderTime: newTime || null,
-                        notified: false // Reset so it alerts at the new time
-                    });
-
-                    // B. Update all associated Transactions if name changed
-                    if (newName !== oldName) {
-                        const q = query(transactionsCollectionRef, where('account', '==', oldName));
-                        const transactionDocs = await getDocs(q);
-                        transactionDocs.forEach((transactionDoc) => {
-                            const tDocRef = doc(transactionsCollectionRef, transactionDoc.id);
-                            batch.update(tDocRef, { account: newName });
-                        });
-                    }
-
-                    await batch.commit();
-
-                    // 4. Success & Reset Form back to "Add Mode"
-                    showStatus('Ledger updated successfully!', 'text-green-600', document.getElementById('specific-account-status'));
-
-                    form.reset();
-                    if (targetDisplay) targetDisplay.textContent = "New Ledger";
-                    submitBtn.textContent = "Add Account";
-                    submitBtn.classList.replace('bg-green-600', 'bg-indigo-600');
-
-                    // Restore original add function
-                    form.onsubmit = handleAddSpecificAccount;
-
-                } catch (error) {
-                    console.error("Update Error:", error);
-                    showStatus('Error: Could not update record.', 'text-red-600', document.getElementById('specific-account-status'));
-                }
-            };
+            document.getElementById('new-account-name').focus();
         }
 
         // Updated Listener
@@ -2407,6 +2421,151 @@
             }
 
             // ----------------------------------------------------
+            document.getElementById('add-specific-account-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                e.stopImmediatePropagation(); // <--- THIS STOPS THE DOUBLE SUBMISSION
+
+                const nameInput = document.getElementById('new-account-name');
+                const newName = nameInput.value.trim();
+                const rDate = document.getElementById('ledger-reminder-date').value || null;
+                const rTime = document.getElementById('ledger-reminder-time').value || null;
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+
+                const accountsCollectionRef = getSpecificAccountsCollectionPath(selectedAccountType);
+
+                try {
+                    if (editingAccountId) {
+                        // --- UPDATE MODE ---
+                        const accountDocRef = doc(accountsCollectionRef, editingAccountId);
+                        await updateDoc(accountDocRef, {
+                            name: newName,
+                            reminderDate: rDate,
+                            reminderTime: rTime,
+                            notified: false
+                        });
+                        document.getElementById('cancel-selection-x').classList.add('hidden');
+                        showStatus('Ledger Updated!', 'text-green-600', document.getElementById('specific-account-status'));
+                    } else {
+                        // --- ADD MODE ---
+                        await addDoc(accountsCollectionRef, {
+                            name: newName,
+                            createdAt: new Date().toISOString(),
+                            reminderDate: rDate,
+                            reminderTime: rTime,
+                            notified: false
+                        });
+                        showStatus('New Ledger Added!', 'text-green-600', document.getElementById('specific-account-status'));
+                    }
+
+                    // --- THE RESET (Ensures next click is not an update) ---
+                    editingAccountId = null;
+                    e.target.reset();
+                    document.getElementById('reminder-target-display').textContent = "Search Ledger";
+                    submitBtn.textContent = "Add Account";
+                    submitBtn.className = "w-full sm:w-auto py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition duration-150";
+
+                } catch (err) {
+                    console.error("Submit error:", err);
+                }
+            }, true); // Use 'true' here to capture the event before others
+
+            document.getElementById('reminder-target-display').addEventListener('click', () => {
+                const searchContainer = document.getElementById('reminder-search-container');
+                searchContainer.classList.toggle('hidden');
+                if (!searchContainer.classList.contains('hidden')) {
+                    document.getElementById('quick-search-input').focus();
+                }
+            });
+
+            document.getElementById('quick-search-input').addEventListener('input', async (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const resultsEl = document.getElementById('quick-search-results');
+                resultsEl.innerHTML = ''; // Clear old results
+
+                if (searchTerm.length < 1) return;
+
+                const accountsCollectionRef = getSpecificAccountsCollectionPath(selectedAccountType);
+                const snapshot = await getDocs(accountsCollectionRef);
+
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    if (data.name.toLowerCase().includes(searchTerm)) {
+                        // Create result row
+                        const row = document.createElement('div');
+                        row.className = 'flex items-center justify-between p-2 hover:bg-gray-50 rounded border-b border-gray-100';
+
+                        row.innerHTML = `
+                <span class="text-sm font-medium text-gray-700">${data.name}</span>
+                <button type="button" class="quick-select-btn px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 transition" 
+                    data-id="${docSnap.id}" 
+                    data-name="${data.name}" 
+                    data-date="${data.reminderDate || ''}" 
+                    data-time="${data.reminderTime || ''}">
+                    Select
+                </button>
+            `;
+                        resultsEl.appendChild(row);
+                    }
+                });
+
+                // Add listeners to the new "Select" buttons
+                document.querySelectorAll('.quick-select-btn').forEach(btn => {
+                    btn.addEventListener('click', (event) => {
+                        const { id, name, date, time } = event.target.dataset;
+
+                        // Fill the form using your existing rename function
+                        handleRenameAccount(id, name, date, time);
+
+                        // Hide search after selection
+                        document.getElementById('reminder-search-container').classList.add('hidden');
+                        document.getElementById('quick-search-input').value = '';
+                        resultsEl.innerHTML = '';
+
+                        showStatus(`Reminder target set to: ${name}`, 'text-blue-600', document.getElementById('specific-account-status'));
+                    });
+                });
+            });
+            // Function to close and clear the search
+            const closeQuickSearch = () => {
+                const container = document.getElementById('reminder-search-container');
+                const input = document.getElementById('quick-search-input');
+                const results = document.getElementById('quick-search-results');
+
+                container.classList.add('hidden');
+                input.value = '';
+                results.innerHTML = '';
+            };
+
+            // Listener for the Cancel (X) button
+            document.getElementById('close-quick-search').addEventListener('click', closeQuickSearch);
+
+            // Also close it if the user hits the "Escape" key while typing
+            document.getElementById('quick-search-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeQuickSearch();
+            });
+
+            // Update your selection logic to use the same close function
+            // (Inside your .quick-select-btn listener from the previous step)
+            // Replace the old closing lines with: closeQuickSearch();
+            document.getElementById('cancel-selection-x').addEventListener('click', () => {
+                // 1. Reset Global State
+                editingAccountId = null;
+
+                // 2. Clear Form
+                document.getElementById('add-specific-account-form').reset();
+                document.getElementById('reminder-target-display').textContent = "Search Ledger";
+
+                // 3. Reset Main Button
+                const submitBtn = document.getElementById('main-account-submit-btn');
+                submitBtn.textContent = "Add Account";
+                submitBtn.classList.remove('bg-green-600');
+                submitBtn.classList.add('bg-indigo-600');
+
+                // 4. Hide this X button
+                document.getElementById('cancel-selection-x').classList.add('hidden');
+
+                showStatus('Selection cleared.', 'text-gray-500', document.getElementById('specific-account-status'));
+            });
 
 
 
