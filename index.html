@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -338,6 +340,9 @@
                 <div class="flex flex-col sm:flex-row gap-2 w-full">
                     <input type="text" id="new-account-name" placeholder="New Account Name..." required
                         class="flex-grow rounded-md border-gray-300 shadow-sm p-2 border focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto">
+                    <input type="tel" id="new-account-phone" placeholder="WhatsApp Number (e.g. 919876543210)"
+                        class="flex-grow rounded-md border-gray-300 shadow-sm p-2 border focus:ring-indigo-500 w-full"
+                        pattern="[0-9]{10,12}" title="Please enter 10 digits or include country code (e.g., 91)">
 
                     <div class="flex items-center gap-1">
                         <button type="submit" id="main-account-submit-btn"
@@ -479,6 +484,14 @@
                     class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition ease-in-out duration-150">
                     Update Profile
                 </button>
+                <button type="button" id="share-summary-wa"
+                    class="w-full py-3 px-4 border border-green-200 rounded-md shadow-sm text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 transition flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.654zm6.233-3.762c1.608.955 3.186 1.432 4.907 1.433 5.311 0 9.634-4.323 9.637-9.636.002-5.314-4.322-9.638-9.636-9.638-5.313 0-9.638 4.325-9.64 9.638-.001 1.832.51 3.513 1.479 5.067l-1.006 3.673 3.76-1.001z" />
+                    </svg>
+                    Share My Ledger Summary
+                </button>
                 <button type="button" id="cancel-edit-btn"
                     class="w-full py-3 px-4 mt-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition ease-in-out duration-150">
                     Cancel
@@ -589,9 +602,85 @@
                         class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ease-in-out duration-150">
                         Record Transaction
                     </button>
+                    <div class="mb-4">
+                        <label
+                            class="group flex items-center justify-center w-full py-4 px-2 border-2 border-dashed border-blue-300 rounded-xl bg-blue-50 hover:bg-blue-100 transition-all cursor-pointer">
+                            <input type="file" id="ocr-upload" accept="image/*" capture="environment" class="hidden">
+                            <div class="flex flex-col items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                    class="h-8 w-8 text-blue-500 mb-1 group-hover:scale-110 transition-transform"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">Scan Bill /
+                                    Receipt</span>
+                            </div>
+                        </label>
+                        <div id="ocr-loading" class="hidden mt-2">
+                            <div class="flex items-center justify-center gap-2">
+                                <div class="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                                <span class="text-[10px] font-bold text-blue-600 uppercase">AI Reading Receipt...</span>
+                            </div>
+                        </div>
+                    </div>
                     <div id="transaction-status" class="text-sm pt-2 text-center hidden"></div>
                 </form>
             </div>
+            <div id="ocr-modal"
+                class="fixed inset-0 z-[10000] hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div
+                    class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+                    <div class="bg-blue-600 p-4 text-white">
+                        <h3 class="text-lg font-bold flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Verify Scanned Data
+                        </h3>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 uppercase">Description / Vendor</label>
+                            <input type="text" id="modal-desc"
+                                class="w-full mt-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase">Amount (₹)</label>
+                                <input type="number" id="modal-amount"
+                                    class="w-full mt-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-400 uppercase">Date</label>
+                                <input type="date" id="modal-date"
+                                    class="w-full mt-1 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 uppercase">Category</label>
+                            <select id="modal-category" class="w-full mt-1 p-2 border rounded-md outline-none">
+                                <option value="Food">Food & Groceries</option>
+                                <option value="Shopping">Shopping</option>
+                                <option value="Transportation">Transportation</option>
+                                <option value="Other" selected>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex border-t">
+                        <button id="modal-cancel"
+                            class="flex-1 py-4 text-gray-500 font-bold hover:bg-gray-50 transition">Cancel</button>
+                        <button id="modal-record"
+                            class="flex-1 py-4 bg-blue-600 text-white font-bold hover:bg-blue-700 transition">Record
+                            Now</button>
+                    </div>
+                </div>
+            </div>
+
 
             <div class="lg:col-span-2 space-y-6">
 
@@ -607,6 +696,16 @@
                     <div class="p-4 bg-white rounded-xl card text-center">
                         <p class="text-sm text-gray-500">Net Balance</p>
                         <p id="net-balance" class="2xl font-bold mt-1 text-gray-800">₹0.00</p>
+                    </div>
+                </div>
+
+                <div class="p-6 bg-white rounded-xl card mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-700">Spending Analysis</h2>
+                        <span class="text-xs text-gray-400">Expenses by Category</span>
+                    </div>
+                    <div class="relative" style="height: 250px;">
+                        <canvas id="expenseChart"></canvas>
                     </div>
                 </div>
 
@@ -718,6 +817,29 @@
             alert('Error message: ' + msg + '\nURL: ' + url + '\nLine Number: ' + linenumber);
             return true;
         };
+        function generateWhatsAppLink(t) {
+            const myName = (userProfile && userProfile.name) ? userProfile.name : "User";
+
+            // Check if phone was saved in the transaction, if not fallback to global variable
+            const phone = t.phone || window.currentAccountPhone || "";
+
+            const message = `Hi! Friendly reminder from ${myName}: ${t.description} for ${formatCurrency(t.amount)}.`;
+            const encodedMsg = encodeURIComponent(message);
+
+            // --- THE CRITICAL FIX ---
+            // Remove everything except numbers (removes +, spaces, dashes)
+            let cleanPhone = phone.replace(/\D/g, '');
+
+            // If it's 10 digits (Indian format), WhatsApp REQUIRES the '91' prefix
+            if (cleanPhone.length === 10) {
+                cleanPhone = "91" + cleanPhone;
+            }
+
+            // Use api.whatsapp.com for best MacBook Desktop App compatibility
+            return cleanPhone
+                ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`
+                : `https://api.whatsapp.com/send?text=${encodedMsg}`;
+        }
         // setLogLevel('debug'); // Uncomment for debugging
 
         // ---------------------------------------------------------------------------------
@@ -745,7 +867,10 @@
         let unsubscribeTransactions = null;
         let userProfile = {};
         let profilePhotoFile = null;
+        let currentAccountPhone = "";
+        window.currentAccountPhone = "";
         let editProfilePhotoFile = null;
+        let myChart = null; // Holds the chart instance so we can refresh it
         let editingAccountId = null; // Stores the ID of the account being edited// Correctly defined
         let tempSignupData = {}; // Stores Step 1 data temporarily
         const app = initializeApp(firebaseConfig);
@@ -1309,6 +1434,53 @@
                 hideElement(authStatusEl);
             }, 400); // Duration of CSS transition
         }
+        function updateExpenseChart() {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+
+            // 1. Data Prep: Filter only 'debit' (expenses) and group by category
+            const categoryTotals = {};
+            allTransactions.filter(t => t.type === 'debit').forEach(t => {
+                categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+            });
+
+            const labels = Object.keys(categoryTotals);
+            const data = Object.values(categoryTotals);
+
+            // 2. Clear old chart if it exists to prevent overlap
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            // 3. Create the Doughnut Chart
+            myChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11 }
+                            }
+                        }
+                    },
+                    cutout: '70%' // Makes it a thin, modern ring
+                }
+            });
+        }
 
 
         // UPDATED: Back button handler for 3-step navigation
@@ -1497,6 +1669,8 @@
             populateDistricts(stateSelectElement, districtSelectElement, selectedDistrict);
         }
 
+
+
         // Function to populate District dropdowns based on selected State
         function populateDistricts(stateSelectElement, districtSelectElement, selectedDistrict = null) {
             const state = stateSelectElement.value;
@@ -1550,6 +1724,8 @@
             // Populate states and set selected state, which cascades to districts
             populateStates(stateSelect, districtSelect, tempSignupData.state, tempSignupData.district);
         }
+
+
 
         // --- PROFILE FUNCTIONS ---
 
@@ -1819,9 +1995,14 @@
         }
 
         // Step 2: Handle selecting a specific account (e.g., HDFC Regalia)
-        function handleSpecificAccountSelect(accountName) {
+        // Add accountPhone to the parameters
+        function handleSpecificAccountSelect(accountName, accountPhone) {
             unsubscribeAllListeners(); // Stop old listeners
+
             selectedSpecificAccountName = accountName;
+
+            // Store this globally so handleAddTransaction can access it
+            window.currentAccountPhone = accountPhone || "";
 
             // 1. Map the selected account type to a friendly display title
             const typeTitles = {
@@ -1837,7 +2018,7 @@
             const appTitle = document.getElementById('app-title');
             if (appTitle) {
                 appTitle.textContent = `${titleText}: ${accountName}`;
-                appTitle.classList.remove('hidden'); // Ensure it is visible now
+                appTitle.classList.remove('hidden');
             }
 
             // 3. Update the Transaction Form Display
@@ -1846,7 +2027,6 @@
                 specificAccountDisplay.textContent = accountName;
             }
 
-            // Update the label for better context
             const recordingLabel = document.querySelector('label[for="current-specific-account-display"]');
             if (recordingLabel) {
                 recordingLabel.textContent = `Recording for ${titleText}:`;
@@ -1906,7 +2086,7 @@
 
         // Function to rename a ledger
         // Function to rename a ledger AND all its associated transactions
-        async function handleRenameAccount(accountId, oldName, oldDate, oldTime) {
+        async function handleRenameAccount(accountId, oldName, oldDate, oldTime, oldPhone) {
             // 1. Tell the app which ID we are editing
             editingAccountId = accountId;
 
@@ -1914,6 +2094,10 @@
             document.getElementById('new-account-name').value = oldName;
             document.getElementById('ledger-reminder-date').value = oldDate || '';
             document.getElementById('ledger-reminder-time').value = oldTime || '';
+            const phoneInput = document.getElementById('new-account-phone');
+            if (phoneInput) {
+                phoneInput.value = oldPhone || '';
+            }
             document.getElementById('reminder-target-display').textContent = oldName;
 
             // 3. Change the Button UI to "Update" mode
@@ -1953,12 +2137,71 @@
                         wrapper.className = 'flex items-center justify-between bg-gray-100 rounded-lg p-3 hover:bg-gray-200 transition cursor-pointer';
 
                         const nameBtn = document.createElement('button');
-                        nameBtn.textContent = account.name;
+                        nameBtn.textContent = account.name + (account.phone ? " (📞)" : " ");
                         nameBtn.className = 'flex-1 text-left text-lg font-medium text-gray-800';
-                        nameBtn.onclick = () => handleSpecificAccountSelect(account.name);
+                        nameBtn.onclick = () => handleSpecificAccountSelect(account.name, account.phone);
 
                         const actionArea = document.createElement('div');
                         actionArea.className = 'flex items-center space-x-2';
+                        // Inside setupSpecificAccountListener -> snapshot.forEach(docSnap => { ... })
+
+                        // Create the WhatsApp Button
+                        // Inside setupSpecificAccountListener -> snapshot.forEach(docSnap => { ... })
+
+                        const waBtn = document.createElement('button');
+                        waBtn.className = 'ml-2 text-green-500 hover:text-green-600 p-1 transition-transform hover:scale-110';
+                        waBtn.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.654zm6.233-3.762c1.608.955 3.186 1.432 4.907 1.433 5.311 0 9.634-4.323 9.637-9.636.002-5.314-4.322-9.638-9.636-9.638-5.313 0-9.638 4.325-9.64 9.638-.001 1.832.51 3.513 1.479 5.067l-1.006 3.673 3.76-1.001z"/>
+    </svg>`;
+
+                        waBtn.onclick = async (e) => {
+                            e.stopPropagation(); // Prevents navigating into the ledger details
+
+                            // 1. Calculate the current balance for this specific person
+                            const transactionsPath = getCollectionPath(selectedAccountType);
+                            const q = query(transactionsPath, where('account', '==', account.name));
+                            const tSnapshot = await getDocs(q);
+
+                            let total = 0;
+                            tSnapshot.forEach(tDoc => {
+                                const tData = tDoc.data();
+                                if (tData.type === 'credit') total += tData.amount;
+                                else total -= tData.amount;
+                            });
+
+                            // 2. Prepare the personalized message
+                            const balanceStatus = total >= 0 ? "Credit Balance" : "Pending Dues";
+                            const absoluteAmount = Math.abs(total).toFixed(2);
+                            const message = `Hi ${account.name}! This is a reminder from ${userProfile.name}. Your current ${balanceStatus} is ₹${absoluteAmount}.`;
+
+                            // 3. CLEAN THE PHONE NUMBER (Critical for direct chat)
+                            // This removes any spaces, dashes, or brackets
+                            let rawPhone = account.phone || "";
+                            let cleanPhone = rawPhone.replace(/\D/g, '');
+
+                            // Auto-add '91' if it's a standard 10-digit Indian number
+                            if (cleanPhone.length === 10) {
+                                cleanPhone = "91" + cleanPhone;
+                            } else if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
+                                cleanPhone = "91" + cleanPhone.substring(1);
+                            }
+
+                            // 4. Open WhatsApp directly to that specific number
+                            // NOTE: Use api.whatsapp.com for better MacBook Desktop App redirection
+                            let waUrl = "";
+                            if (cleanPhone && cleanPhone.length >= 11) {
+                                waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+                            } else {
+                                // Fallback if no number is found
+                                waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+                            }
+
+                            window.open(waUrl, '_blank');
+                        };
+
+                        // Add it to your list UI
+                        actionArea.prepend(waBtn);
 
                         // EDIT BUTTON
                         const editBtn = document.createElement('button');
@@ -1967,7 +2210,7 @@
                         editBtn.onclick = (e) => {
                             e.stopPropagation();
                             // Pass existing data to the edit form
-                            handleRenameAccount(account.id, account.name, account.reminderDate, account.reminderTime);
+                            handleRenameAccount(account.id, account.name, account.reminderDate, account.reminderTime, account.phone);
                         };
 
                         // DELETE BUTTON
@@ -1999,12 +2242,22 @@
             // 1. Get values from the form
             const newAccountName = document.getElementById('new-account-name').value.trim();
 
+            const phoneInput = document.getElementById('new-account-phone');
+            // Clean the phone number before saving to Firestore
+            let phoneNumber = phoneInput ? phoneInput.value.replace(/\D/g, '') : null;
+            // If the user entered 10 digits, save it as 91XXXXXXXXXX
+            if (phoneNumber && phoneNumber.length === 10) {
+                phoneNumber = "91" + phoneNumber;
+            }
+
             // Check if reminder elements exist before grabbing values
             const dateEl = document.getElementById('ledger-reminder-date');
             const timeEl = document.getElementById('ledger-reminder-time');
 
             const rDate = dateEl ? dateEl.value : null;
             const rTime = timeEl ? timeEl.value : null;
+
+
 
             if (!newAccountName || !userId || !selectedAccountType) return;
 
@@ -2015,6 +2268,7 @@
                 // 2. Add account to Firestore
                 await addDoc(accountsCollectionRef, {
                     name: newAccountName,
+                    phone: phoneNumber,
                     createdAt: new Date().toISOString(), // <--- ADDED MISSING COMMA HERE
                     reminderDate: rDate || null,
                     reminderTime: rTime || null,
@@ -2113,17 +2367,32 @@
                     type: type,
                     category: category,
                     account: selectedSpecificAccountName,
+                    // NEW: Link the phone number to this specific transaction
+                    // currentAccountPhone must be set when you select the account
+                    phone: window.currentAccountPhone || "",
                     createdAt: new Date().toISOString()
                 };
+
                 await addDoc(collectionRef, transactionData);
+
+                // Success Feedback & Reset
                 document.getElementById('transaction-form').reset();
-                document.getElementById('date').value = new Date().toISOString().substring(0, 10); // Reset date to today
+                document.getElementById('date').value = new Date().toISOString().substring(0, 10);
+
+                // Bonus: Trigger that pulse animation we discussed!
+                const balanceEl = document.getElementById('net-balance');
+                if (balanceEl) {
+                    balanceEl.classList.add('animate-balance');
+                    setTimeout(() => balanceEl.classList.remove('animate-balance'), 600);
+                }
+
                 showStatus('Transaction recorded successfully!', 'text-green-600', document.getElementById('transaction-status'));
             } catch (error) {
                 console.error("Error recording transaction:", error);
                 showStatus('Error recording transaction.', 'text-red-600', document.getElementById('transaction-status'));
             }
         }
+
 
         function setupTransactionListener() {
             if (unsubscribeTransactions) {
@@ -2166,6 +2435,7 @@
 
                 renderTransactions();
                 updateSummary();
+                updateExpenseChart();
 
             }, (error) => {
                 console.error("Error listening to transactions: ", error);
@@ -2173,12 +2443,14 @@
             });
         }
 
+
+
         function renderTransactions() {
             const transactionListEl = document.getElementById('transaction-list');
             transactionListEl.innerHTML = ''; // Clear existing list
 
             if (allTransactions.length === 0) {
-                transactionListEl.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-gray-500">No transactions recorded for this account.</td></tr>`;
+                transactionListEl.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-gray-500">No transactions recorded.</td></tr>`;
                 return;
             }
 
@@ -2187,26 +2459,34 @@
                 const amountClass = t.type === 'debit' ? 'debit font-medium' : 'credit font-medium';
                 const sign = t.type === 'debit' ? '-' : '+';
 
+                // --- FIXED: MOVE LINK GENERATION INSIDE THE LOOP ---
+                const whatsappUrl = generateWhatsAppLink(t);
+
                 row.innerHTML = `
-                    <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-800">${t.date}</td>
-                    <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">${t.account}</td>
-                    <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-800">${t.description}</td>
-                    <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-500">${t.category}</td>
-                    <td class="px-3 py-3 whitespace-nowrap text-sm text-right ${amountClass}">
-                        ${sign} ${formatCurrency(t.amount)}
-                    </td>
-                    <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium">
-                        <button data-id="${t.id}" class="delete-transaction-btn text-red-500 hover:text-red-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    </td>
-                `;
+            <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-800">${t.date}</td>
+            <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">${t.account}</td>
+            <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-800">${t.description}</td>
+            <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-500">${t.category}</td>
+            <td class="px-3 py-3 whitespace-nowrap text-sm text-right ${amountClass}">
+                ${sign} ${formatCurrency(t.amount)}
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap text-center text-sm font-medium">
+                <div class="flex items-center justify-center space-x-3">
+                    <a href="${whatsappUrl}" target="_blank" class="text-green-500 hover:scale-110 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.483 8.413-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.308 1.654zm6.233-3.762c1.608.955 3.186 1.432 4.907 1.433 5.311 0 9.634-4.323 9.637-9.636.002-5.314-4.322-9.638-9.636-9.638-5.313 0-9.638 4.325-9.64 9.638-.001 1.832.51 3.513 1.479 5.067l-1.006 3.673 3.76-1.001z"/></svg>
+                    </a>
+                    <button data-id="${t.id}" class="delete-transaction-btn text-red-500 hover:text-red-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
                 transactionListEl.appendChild(row);
             });
 
-            // Add listeners for delete buttons
+            // Re-attach delete listeners
             document.querySelectorAll('.delete-transaction-btn').forEach(button => {
                 button.addEventListener('click', handleDeleteTransaction);
             });
@@ -2455,6 +2735,92 @@
                 });
             }
 
+            document.getElementById('ocr-upload').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const loader = document.getElementById('ocr-loading');
+                loader.classList.remove('hidden');
+
+                try {
+                    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+
+                    // 1. Extract Amount
+                    const amountRegex = /(?:total|grand|net|payable|amt|rs|₹)\D*([\d,]+\.\d{2})/gi;
+                    let matches = [...text.matchAll(amountRegex)];
+                    let finalAmount = matches.length > 0 ? matches[matches.length - 1][1].replace(/,/g, '') : "";
+
+                    // 2. Extract Date (or use current date as fallback)
+                    const dateRegex = /(\d{1,4}[.\-\/]\d{1,2}[.\-\/]\d{1,4})/;
+                    const dateMatch = text.match(dateRegex);
+                    let finalDate = new Date().toISOString().substring(0, 10); // Default to TODAY
+
+                    if (dateMatch) {
+                        const dateStr = dateMatch[1].replace(/\//g, '-');
+                        const dParts = dateStr.split('-');
+                        if (dParts[0].length === 2) {
+                            finalDate = `${dParts[2]}-${dParts[1]}-${dParts[0]}`; // DD-MM-YYYY to YYYY-MM-DD
+                        } else {
+                            finalDate = dateStr;
+                        }
+                    }
+
+                    // 3. Extract Vendor
+                    const lines = text.split('\n').filter(l => l.trim().length > 3);
+                    const finalDesc = lines.length > 0 ? lines[0].trim().substring(0, 30) : "Scanned Receipt";
+
+                    // 4. FILL MODAL AND SHOW
+                    document.getElementById('modal-desc').value = finalDesc;
+                    document.getElementById('modal-amount').value = finalAmount;
+                    document.getElementById('modal-date').value = finalDate;
+
+                    document.getElementById('ocr-modal').classList.remove('hidden');
+
+                } catch (err) {
+                    console.error(err);
+                    alert("OCR Failed to read the document.");
+                } finally {
+                    loader.classList.add('hidden');
+                    e.target.value = '';
+                }
+            });
+            // Handle Cancel Button in Modal
+            document.getElementById('modal-cancel').addEventListener('click', () => {
+                document.getElementById('ocr-modal').classList.add('hidden');
+            });
+
+            // Handle Record Button in Modal
+            document.getElementById('modal-record').addEventListener('click', async () => {
+                // Transfer modal data back to main form hiddenly or use directly
+                const desc = document.getElementById('modal-desc').value;
+                const amt = parseFloat(document.getElementById('modal-amount').value);
+                const dt = document.getElementById('modal-date').value;
+                const cat = document.getElementById('modal-category').value;
+
+                if (!amt || !desc) return alert("Please ensure Amount and Description are filled.");
+
+                const collectionRef = getCollectionPath(selectedAccountType);
+
+                try {
+                    await addDoc(collectionRef, {
+                        date: dt,
+                        description: desc,
+                        amount: amt,
+                        type: 'debit', // Usually receipts are expenses
+                        category: cat,
+                        account: selectedSpecificAccountName,
+                        phone: window.currentAccountPhone || "",
+                        createdAt: new Date().toISOString()
+                    });
+
+                    document.getElementById('ocr-modal').classList.add('hidden');
+                    showStatus('Transaction Recorded!', 'text-green-600', document.getElementById('transaction-status'));
+                } catch (error) {
+                    console.error(error);
+                    alert("Error saving transaction.");
+                }
+            });
+
             // ----------------------------------------------------
             document.getElementById('add-specific-account-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -2474,6 +2840,7 @@
                         const accountDocRef = doc(accountsCollectionRef, editingAccountId);
                         await updateDoc(accountDocRef, {
                             name: newName,
+                            phone: document.getElementById('new-account-phone').value.replace(/\D/g, ''), // Add this line
                             reminderDate: rDate,
                             reminderTime: rTime,
                             notified: false
@@ -2503,6 +2870,42 @@
                     console.error("Submit error:", err);
                 }
             }, true); // Use 'true' here to capture the event before others
+            document.getElementById('share-summary-wa').addEventListener('click', async () => {
+                showStatus('Calculating total summary...', 'text-gray-500', document.getElementById('edit-profile-status'));
+
+                try {
+                    // 1. Get all customer transactions
+                    const customerTransactionsRef = collection(db, 'users', userId, 'customerTransactions');
+                    const snapshot = await getDocs(customerTransactionsRef);
+
+                    let totalCredit = 0;
+                    let totalDebit = 0;
+
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (data.type === 'credit') totalCredit += data.amount;
+                        else totalDebit += data.amount;
+                    });
+
+                    const netBalance = totalCredit - totalDebit;
+
+                    // 2. Draft the Business Message
+                    const message = `📊 *Ledger Summary for ${userProfile.name}*\n\n` +
+                        `✅ Total Income: ₹${totalCredit.toFixed(2)}\n` +
+                        `❌ Total Expenses: ₹${totalDebit.toFixed(2)}\n` +
+                        `💰 *Net Balance: ₹${netBalance.toFixed(2)}*\n\n` +
+                        `Generated via Personal Payment Tracker.`;
+
+                    // 3. Open WhatsApp (General share so you can pick the recipient)
+                    const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                    window.open(waUrl, '_blank');
+
+                    hideElement(document.getElementById('edit-profile-status'));
+                } catch (error) {
+                    console.error("Summary Error:", error);
+                    showStatus('Error generating summary.', 'text-red-600', document.getElementById('edit-profile-status'));
+                }
+            });
 
             document.getElementById('reminder-target-display').addEventListener('click', () => {
                 const searchContainer = document.getElementById('reminder-search-container');
