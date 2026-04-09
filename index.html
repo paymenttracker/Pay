@@ -1789,6 +1789,7 @@
         }
 
         function handleNavigateToProfileEdit() {
+            history.pushState({ page: 'profile' }, "");
             unsubscribeAllListeners(); // Stop dashboard listeners
 
             // 1. Hide every possible main container
@@ -1966,6 +1967,7 @@
 
         // Step 1: Handle selecting the general ledger type
         function handleAccountTypeSelection(type) {
+            history.pushState({ page: 'specific' }, "");
             unsubscribeAllListeners(); // Stop transaction listener if coming from main app
             selectedAccountType = type;
             const ledgerReminderUI = document.getElementById('ledger-reminder-ui');
@@ -1997,6 +1999,7 @@
         // Step 2: Handle selecting a specific account (e.g., HDFC Regalia)
         // Add accountPhone to the parameters
         function handleSpecificAccountSelect(accountName, accountPhone) {
+            history.pushState({ page: 'dashboard' }, "");
             unsubscribeAllListeners(); // Stop old listeners
 
             selectedSpecificAccountName = accountName;
@@ -2631,6 +2634,19 @@
             otpBackBtn.addEventListener('click', handleSignupBack);
             backStepBtn3.addEventListener('click', handleSignupBack);
             document.getElementById('signup-step-3-form').addEventListener('submit', handleFinalSignup);
+            document.getElementById('specific-selection-back-btn').onclick = () => history.back();
+            document.getElementById('change-account-btn').onclick = () => history.back();
+            document.getElementById('change-ledger-type-btn').onclick = () => {
+                // This goes back two steps: from Dashboard -> Specific List -> Main Type Selection
+                history.go(-2);
+            };
+            document.getElementById('cancel-edit-btn').onclick = () => history.back();
+
+            // Make sure 'modal-cancel' exists in your HTML if you added the OCR popup
+            const modalCancel = document.getElementById('modal-cancel');
+            if (modalCancel) {
+                modalCancel.onclick = () => history.back();
+            }
 
             // PROFILE PHOTO LISTENERS
             profilePhotoInput.addEventListener('change', (e) => {
@@ -2787,6 +2803,7 @@
             // Handle Cancel Button in Modal
             document.getElementById('modal-cancel').addEventListener('click', () => {
                 document.getElementById('ocr-modal').classList.add('hidden');
+                history.pushState({ page: 'modal' }, "");
             });
 
             // Handle Record Button in Modal
@@ -2814,6 +2831,7 @@
                     });
 
                     document.getElementById('ocr-modal').classList.add('hidden');
+                    history.pushState({ page: 'modal' }, "");
                     showStatus('Transaction Recorded!', 'text-green-600', document.getElementById('transaction-status'));
                 } catch (error) {
                     console.error(error);
@@ -3068,6 +3086,34 @@
                 button.addEventListener('click', handleDeleteTransaction);
             });
         }
+
+        // Function to handle the hardware/browser back button
+        window.onpopstate = function (event) {
+            // 1. If OCR Modal is open, close it
+            const ocrModal = document.getElementById('ocr-modal');
+            if (ocrModal && !ocrModal.classList.contains('hidden')) {
+                ocrModal.classList.add('hidden');
+                return;
+            }
+
+            // 2. If we are on the App Dashboard, go back to Specific Account List
+            if (!appContainer.classList.contains('hidden')) {
+                handleNavigateToSpecificAccountSelection();
+                return;
+            }
+
+            // 3. If we are on Specific Account List, go back to Type Selection
+            if (!specificAccountSelectionContainer.classList.contains('hidden')) {
+                handleNavigateToTypeSelection();
+                return;
+            }
+
+            // 4. If we are on Profile Edit, go back to selection
+            if (!profileEditContainer.classList.contains('hidden')) {
+                handleNavigateBackFromProfileEdit();
+                return;
+            }
+        };
 
 
 
